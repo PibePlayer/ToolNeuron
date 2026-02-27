@@ -2,7 +2,7 @@ name: Build and Release APK
 
 on:
   push:
-    branches: [re-write]
+    branches: ['**']
     tags:
       - 'v*'
   workflow_dispatch:
