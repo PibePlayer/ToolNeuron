@@ -470,6 +470,15 @@ private fun FileDownloadItem(
                         Text("Retry", style = MaterialTheme.typography.labelSmall)
                     }
                 }
+                is ModelDownloadService.DownloadState.Cancelled -> {
+                    IconButton(onClick = onDownload) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Download",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
                 null -> {
                     IconButton(onClick = onDownload) {
                         Icon(

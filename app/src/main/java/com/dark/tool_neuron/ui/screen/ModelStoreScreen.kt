@@ -256,6 +256,26 @@ fun ModelStoreScreen(
                 }
             }
         }
+        }
+
+        // HuggingFace Search overlay
+        AnimatedVisibility(
+            visible = showHFSearch,
+            enter = slideInVertically(initialOffsetY = { it }),
+            exit = slideOutVertically(targetOffsetY = { it })
+        ) {
+            HuggingFaceSearchScreen(
+                viewModel = viewModel,
+                onClose = { viewModel.closeHFSearch() }
+            )
+        }
+
+        // Handle back press when HF search is showing
+        if (showHFSearch) {
+            BackHandler {
+                viewModel.closeHFSearch()
+            }
+        }
     }
 }
 
@@ -531,29 +551,10 @@ private fun RepoDetailView(
                     )
                     if (info.author.isNotEmpty()) {
                         CaptionText(text = info.author)
+                    }
+                }
+                CaptionText(text = "${info.modelCount} models")
             }
-        }
-    }
-
-    // HuggingFace Search overlay
-    AnimatedVisibility(
-        visible = showHFSearch,
-        enter = slideInVertically(initialOffsetY = { it }),
-        exit = slideOutVertically(targetOffsetY = { it })
-    ) {
-        HuggingFaceSearchScreen(
-            viewModel = viewModel,
-            onClose = { viewModel.closeHFSearch() }
-        )
-    }
-
-    // Handle back press when HF search is showing
-    if (showHFSearch) {
-        BackHandler {
-            viewModel.closeHFSearch()
-        }
-    }
-}
         }
 
         HorizontalDivider(
