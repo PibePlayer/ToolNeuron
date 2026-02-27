@@ -11,6 +11,8 @@ import com.dark.tool_neuron.models.data.HuggingFaceModel
 import com.dark.tool_neuron.models.data.ModelCategory
 import com.dark.tool_neuron.models.data.ModelType
 import com.dark.tool_neuron.models.table_schema.Model
+import com.dark.tool_neuron.network.HuggingFaceClient
+import com.dark.tool_neuron.network.HuggingFaceSearchResult
 import com.dark.tool_neuron.repo.ModelRepositoryDataStore
 import com.dark.tool_neuron.repo.ModelStoreRepository
 import com.dark.tool_neuron.repo.RepositoryValidator
@@ -30,6 +32,13 @@ enum class SortOption {
     NAME,
     SIZE,
     RECENTLY_ADDED
+}
+
+sealed class HFSearchState {
+    object Idle : HFSearchState()
+    object Loading : HFSearchState()
+    object Success : HFSearchState()
+    data class Error(val message: String) : HFSearchState()
 }
 
 data class RepoGroupInfo(
@@ -114,6 +123,23 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
     // Validation results
     private val _validationResults = MutableStateFlow<Map<String, ValidationResult>>(emptyMap())
     val validationResults: StateFlow<Map<String, ValidationResult>> = _validationResults
+
+    // HuggingFace Search state
+    private val _hfSearchQuery = MutableStateFlow("")
+    val hfSearchQuery: StateFlow<String> = _hfSearchQuery
+
+    private val _hfSearchResults = MutableStateFlow<List<HuggingFaceSearchResult>>(emptyList())
+    val hfSearchResults: StateFlow<List<HuggingFaceSearchResult>> = _hfSearchResults
+
+    private val _hfSearchState = MutableStateFlow<HFSearchState>(HFSearchState.Idle)
+    val hfSearchState: StateFlow<HFSearchState> = _hfSearchState
+
+    private val _showHFSearch = MutableStateFlow(false)
+    val showHFSearch: StateFlow<Boolean> = _showHFSearch
+
+    // Cache for expanded repo files in search results
+    private val _expandedRepoFiles = MutableStateFlow<Map<String, List<com.dark.tool_neuron.network.HuggingFaceFileResponse>>>(emptyMap())
+    val expandedRepoFiles: StateFlow<Map<String, List<com.dark.tool_neuron.network.HuggingFaceFileResponse>>> = _expandedRepoFiles
 
     // App's internal models directory
     private val appModelsDir = File(application.filesDir, "models")
@@ -513,5 +539,96 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
 
     suspend fun getModelConfig(modelId: String): ModelConfig? {
         return systemRepo.getConfigByModelId(modelId)
+    }
+
+    // HuggingFace Search functions
+    fun openHFSearch() {
+        _showHFSearch.value = true
+        _hfSearchQuery.value = ""
+        _hfSearchResults.value = emptyList()
+        _hfSearchState.value = HFSearchState.Idle
+    }
+
+    fun closeHFSearch() {
+        _showHFSearch.value = false
+        _hfSearchQuery.value = ""
+        _hfSearchResults.value = emptyList()
+        _hfSearchState.value = HFSearchState.Idle
+        _expandedRepoFiles.value = emptyMap()
+    }
+
+    fun updateHFSearchQuery(query: String) {
+        _hfSearchQuery.value = query
+    }
+
+    fun searchHuggingFace(query: String) {
+        if (query.isBlank()) {
+            _hfSearchResults.value = emptyList()
+            _hfSearchState.value = HFSearchState.Idle
+            return
+        }
+
+        viewModelScope.launch {
+            _hfSearchState.value = HFSearchState.Loading
+            try {
+                val response = HuggingFaceClient.api.searchModels(query)
+                if (response.isSuccessful) {
+                    _hfSearchResults.value = response.body() ?: emptyList()
+                    _hfSearchState.value = HFSearchState.Success
+                } else {
+                    _hfSearchState.value = HFSearchState.Error("Search failed: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                _hfSearchState.value = HFSearchState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    fun addRepoFromSearch(result: HuggingFaceSearchResult) {
+        val repo = HFModelRepository(
+            id = result.id.replace("/", "-"),
+            name = result.id.substringAfterLast("/"),
+            repoPath = result.id,
+            modelType = ModelType.GGUF
+        )
+        addRepository(repo)
+    }
+
+    fun fetchRepoFiles(repoId: String) {
+        viewModelScope.launch {
+            try {
+                val response = HuggingFaceClient.api.getRepoFiles(repoId)
+                if (response.isSuccessful) {
+                    val ggufFiles = response.body()?.filter { 
+                        it.path.lowercase().endsWith(".gguf")
+                    } ?: emptyList()
+                    _expandedRepoFiles.value = _expandedRepoFiles.value + (repoId to ggufFiles)
+                }
+            } catch (e: Exception) {
+                Log.e("ModelStoreViewModel", "Error fetching repo files", e)
+            }
+        }
+    }
+
+    fun downloadFromSearchResult(result: HuggingFaceSearchResult, file: com.dark.tool_neuron.network.HuggingFaceFileResponse) {
+        val context = getApplication<Application>()
+        val fileUrl = "https://huggingface.co/${result.id}/resolve/main/${file.path}"
+
+        val intent = Intent(context, ModelDownloadService::class.java).apply {
+            action = ModelDownloadService.ACTION_START_DOWNLOAD
+            putExtra(ModelDownloadService.EXTRA_MODEL_ID, "${result.id}_${file.path}".replace("/", "_"))
+            putExtra(ModelDownloadService.EXTRA_MODEL_NAME, file.path.substringAfterLast("/"))
+            putExtra(ModelDownloadService.EXTRA_FILE_URL, fileUrl)
+            putExtra(ModelDownloadService.EXTRA_IS_ZIP, false)
+            putExtra(ModelDownloadService.EXTRA_MODEL_TYPE, ModelType.GGUF.name)
+            putExtra(ModelDownloadService.EXTRA_RUN_ON_CPU, true)
+            putExtra(ModelDownloadService.EXTRA_TEXT_EMBEDDING_SIZE, 768)
+        }
+
+        context.startForegroundService(intent)
+    }
+
+    fun isRepoInLibrary(repoId: String): Boolean {
+        return cachedRepos.any { it.repoPath == repoId }
     }
 }

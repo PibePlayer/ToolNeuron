@@ -8,6 +8,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.ScrollableDefaults
@@ -135,11 +137,13 @@ fun ModelStoreScreen(
     val installedModels by viewModel.installedModels.collectAsState()
     val deviceInfo by viewModel.deviceInfo.collectAsState()
     val deleteInProgress by viewModel.deleteInProgress.collectAsState()
+    val showHFSearch by viewModel.showHFSearch.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
 
-    Scaffold(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
         topBar = {
             if (showSearch) {
                 SearchAppBar(searchQuery = searchQuery, onSearchQueryChange = {
@@ -157,8 +161,14 @@ fun ModelStoreScreen(
                         icon = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back"
                     )
-                }, actions = {
+                },                 actions = {
                     if (selectedTab == StoreTab.MODELS) {
+                        ActionButton(
+                            onClickListener = { viewModel.openHFSearch() },
+                            icon = R.drawable.huggingface,
+                            contentDescription = "Search HuggingFace",
+                            modifier = Modifier.padding(end = rDp(4.dp))
+                        )
                         ActionButton(
                             onClickListener = { viewModel.refreshModels() },
                             icon = Icons.Default.Refresh,
@@ -244,6 +254,26 @@ fun ModelStoreScreen(
                         deviceInfo = deviceInfo, viewModel = viewModel
                     )
                 }
+            }
+        }
+        }
+
+        // HuggingFace Search overlay
+        AnimatedVisibility(
+            visible = showHFSearch,
+            enter = slideInVertically(initialOffsetY = { it }),
+            exit = slideOutVertically(targetOffsetY = { it })
+        ) {
+            HuggingFaceSearchScreen(
+                viewModel = viewModel,
+                onClose = { viewModel.closeHFSearch() }
+            )
+        }
+
+        // Handle back press when HF search is showing
+        if (showHFSearch) {
+            BackHandler {
+                viewModel.closeHFSearch()
             }
         }
     }
