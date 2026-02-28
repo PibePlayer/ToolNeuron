@@ -206,6 +206,7 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             try {
                 val installedList = systemRepo.getAllModels().first()
+                Log.d("ModelStoreViewModel", "loadInstalledModels: loaded ${installedList.size} models: ${installedList.map { it.modelName }}")
                 _installedModels.value = installedList
             } catch (e: Exception) {
                 Log.e("ModelStoreViewModel", "Error loading installed models", e)
@@ -613,11 +614,16 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
     fun downloadFromSearchResult(result: HuggingFaceSearchResult, file: com.dark.tool_neuron.network.HuggingFaceFileResponse) {
         val context = getApplication<Application>()
         val fileUrl = "https://huggingface.co/${result.id}/resolve/main/${file.path}"
+        val modelId = "${result.id}_${file.path}".replace("/", "_")
+        val modelName = file.path.substringAfterLast("/")
+
+        Log.d("HFDownload", "downloadFromSearchResult: modelId='$modelId' modelName='$modelName' url='$fileUrl'")
+        Log.d("HFDownload", "modelId length=${modelId.length}, expected filename='$modelId.gguf'")
 
         val intent = Intent(context, ModelDownloadService::class.java).apply {
             action = ModelDownloadService.ACTION_START_DOWNLOAD
-            putExtra(ModelDownloadService.EXTRA_MODEL_ID, "${result.id}_${file.path}".replace("/", "_"))
-            putExtra(ModelDownloadService.EXTRA_MODEL_NAME, file.path.substringAfterLast("/"))
+            putExtra(ModelDownloadService.EXTRA_MODEL_ID, modelId)
+            putExtra(ModelDownloadService.EXTRA_MODEL_NAME, modelName)
             putExtra(ModelDownloadService.EXTRA_FILE_URL, fileUrl)
             putExtra(ModelDownloadService.EXTRA_IS_ZIP, false)
             putExtra(ModelDownloadService.EXTRA_MODEL_TYPE, ModelType.GGUF.name)

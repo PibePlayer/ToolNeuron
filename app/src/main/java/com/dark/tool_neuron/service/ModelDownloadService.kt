@@ -263,9 +263,11 @@ class ModelDownloadService : Service() {
 
                 updateDownloadState(modelId, DownloadState.Success(modelId))
                 updateNotification(modelName, 100f, notificationId, isSuccess = true)
+                android.util.Log.d("ModelDownloadService", "Download SUCCESS for modelId='$modelId'. State set to Success, will clear in 2s.")
 
                 withContext(Dispatchers.Main) {
                     kotlinx.coroutines.delay(2000)
+                    android.util.Log.d("ModelDownloadService", "Clearing download state for modelId='$modelId' after 2s delay.")
                     updateDownloadState(modelId, null)
                     downloadJobs.remove(modelId)
 
@@ -517,7 +519,11 @@ class ModelDownloadService : Service() {
         val repository = AppContainer.getModelRepository()
         val parser = ModelDataParser()
 
+        android.util.Log.d("ModelDownloadService", "insertModelToDatabase: modelId='$modelId' modelName='$modelName' modelPath='$modelPath' modelType='$modelType'")
+        android.util.Log.d("ModelDownloadService", "modelPath length=${modelPath.length}, file exists=${java.io.File(modelPath).exists()}, file size=${java.io.File(modelPath).length()}")
+
         val checksum = parser.checksumSHA256(modelPath)
+        android.util.Log.d("ModelDownloadService", "checksum='$checksum'")
 
         val providerType = when (modelType) {
             "SD" -> ProviderType.DIFFUSION
