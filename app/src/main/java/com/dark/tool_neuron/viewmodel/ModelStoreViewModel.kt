@@ -206,7 +206,6 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             try {
                 val installedList = systemRepo.getAllModels().first()
-                Log.d("ModelStoreViewModel", "loadInstalledModels: loaded ${installedList.size} models: ${installedList.map { it.modelName }}")
                 _installedModels.value = installedList
             } catch (e: Exception) {
                 Log.e("ModelStoreViewModel", "Error loading installed models", e)
@@ -614,11 +613,11 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
     fun downloadFromSearchResult(result: HuggingFaceSearchResult, file: com.dark.tool_neuron.network.HuggingFaceFileResponse) {
         val context = getApplication<Application>()
         val fileUrl = "https://huggingface.co/${result.id}/resolve/main/${file.path}"
-        val modelId = "${result.id}_${file.path}".replace("/", "_")
+        // Strip any existing extension from the modelId so that ModelDownloadService
+        // can append ".gguf" without creating a double-extension filename like "model.gguf.gguf".
+        val rawId = "${result.id}_${file.path}".replace("/", "_")
+        val modelId = if (rawId.endsWith(".gguf", ignoreCase = true)) rawId.dropLast(5) else rawId
         val modelName = file.path.substringAfterLast("/")
-
-        Log.d("HFDownload", "downloadFromSearchResult: modelId='$modelId' modelName='$modelName' url='$fileUrl'")
-        Log.d("HFDownload", "modelId length=${modelId.length}, expected filename='$modelId.gguf'")
 
         val intent = Intent(context, ModelDownloadService::class.java).apply {
             action = ModelDownloadService.ACTION_START_DOWNLOAD

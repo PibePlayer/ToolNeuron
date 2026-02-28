@@ -14,7 +14,6 @@ import com.dark.tool_neuron.models.table_schema.Model
 import com.dark.tool_neuron.models.table_schema.ModelConfig
 import com.dark.tool_neuron.worker.DiffusionConfig
 import com.dark.tool_neuron.worker.DiffusionInferenceParams
-import com.dark.tool_neuron.worker.ModelDataParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -263,11 +262,9 @@ class ModelDownloadService : Service() {
 
                 updateDownloadState(modelId, DownloadState.Success(modelId))
                 updateNotification(modelName, 100f, notificationId, isSuccess = true)
-                android.util.Log.d("ModelDownloadService", "Download SUCCESS for modelId='$modelId'. State set to Success, will clear in 2s.")
 
                 withContext(Dispatchers.Main) {
                     kotlinx.coroutines.delay(2000)
-                    android.util.Log.d("ModelDownloadService", "Clearing download state for modelId='$modelId' after 2s delay.")
                     updateDownloadState(modelId, null)
                     downloadJobs.remove(modelId)
 
@@ -517,13 +514,20 @@ class ModelDownloadService : Service() {
         textEmbeddingSize: Int
     ) = withContext(Dispatchers.IO) {
         val repository = AppContainer.getModelRepository()
-        val parser = ModelDataParser()
 
-        android.util.Log.d("ModelDownloadService", "insertModelToDatabase: modelId='$modelId' modelName='$modelName' modelPath='$modelPath' modelType='$modelType'")
-        android.util.Log.d("ModelDownloadService", "modelPath length=${modelPath.length}, file exists=${java.io.File(modelPath).exists()}, file size=${java.io.File(modelPath).length()}")
-
-        val checksum = parser.checksumSHA256(modelPath)
-        android.util.Log.d("ModelDownloadService", "checksum='$checksum'")
+        // Use a fast deterministic ID based on modelId + file size instead of
+        // computing SHA-256 over the entire file content (which is extremely slow
+        // for large models and can cause the service to be killed by the OS).
+        val fileSize = File(modelPath).let { f ->
+            if (f.isDirectory) f.walkTopDown().sumOf { it.length() } else f.length()
+        }
+        val checksum = java.security.MessageDigest.getInstance("SHA-256")
+            .apply {
+                update(modelId.toByteArray())
+                update(fileSize.toString().toByteArray())
+            }
+            .digest()
+            .joinToString("") { "%02x".format(it) }
 
         val providerType = when (modelType) {
             "SD" -> ProviderType.DIFFUSION
@@ -536,15 +540,6 @@ class ModelDownloadService : Service() {
             "SD", "TTS" -> PathType.DIRECTORY
             "GGUF" -> PathType.FILE
             else -> PathType.FILE
-        }
-
-        val fileSize = when (modelType) {
-            "GGUF" -> File(modelPath).length()
-            "TTS" -> {
-                val dir = File(modelPath)
-                if (dir.isDirectory) dir.walkTopDown().sumOf { it.length() } else 0L
-            }
-            else -> 0L
         }
 
         val model = Model(

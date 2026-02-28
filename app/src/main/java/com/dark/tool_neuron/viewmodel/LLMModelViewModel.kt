@@ -113,10 +113,18 @@ class LLMModelViewModel @Inject constructor(
     }
 
     private suspend fun loadGgufModel(model: Model, config: ModelConfig) {
-        Log.d("LLMModelViewModel", "loadGgufModel: modelId='${model.id}' modelName='${model.modelName}' pathType='${model.pathType}' modelPath='${model.modelPath}'")
-        val modelFile = java.io.File(model.modelPath)
-        Log.d("LLMModelViewModel", "modelPath exists=${modelFile.exists()} size=${modelFile.length()} isFile=${modelFile.isFile}")
-        Log.d("LLMModelViewModel", "config loadingParams='${config.modelLoadingParams}' inferenceParams='${config.modelInferenceParams}'")
+        // Validate the model file exists before attempting to load
+        if (model.pathType != PathType.CONTENT_URI) {
+            val modelFile = java.io.File(model.modelPath)
+            if (!modelFile.exists()) {
+                AppStateManager.setError("Model file not found: ${model.modelPath}")
+                return
+            }
+            if (!modelFile.isFile) {
+                AppStateManager.setError("Model path is not a file: ${model.modelPath}")
+                return
+            }
+        }
         val success = if (model.pathType == PathType.CONTENT_URI) {
             // Use FD-based loading for content:// URIs (SAF)
             val uri = model.modelPath.toUri()
