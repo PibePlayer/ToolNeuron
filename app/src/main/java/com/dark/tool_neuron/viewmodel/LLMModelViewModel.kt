@@ -85,6 +85,7 @@ class LLMModelViewModel @Inject constructor(
     }
 
     fun loadModel(model: Model) {
+        android.util.Log.d("LLMModelViewModel", "loadModel: model.id='${model.id}', model.modelName='${model.modelName}', model.providerType=${model.providerType}")
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 // Unload any existing model first

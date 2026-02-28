@@ -614,9 +614,13 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
         val context = getApplication<Application>()
         val fileUrl = "https://huggingface.co/${result.id}/resolve/main/${file.path}"
 
+        // DEBUG: Log the key being used for download state lookup
+        val modelIdKey = "${result.id}_${file.path}".replace("/", "_")
+        android.util.Log.d("HFSearch", "downloadFromSearchResult: modelIdKey='$modelIdKey', result.id='${result.id}', file.path='${file.path}'")
+
         val intent = Intent(context, ModelDownloadService::class.java).apply {
             action = ModelDownloadService.ACTION_START_DOWNLOAD
-            putExtra(ModelDownloadService.EXTRA_MODEL_ID, "${result.id}_${file.path}".replace("/", "_"))
+            putExtra(ModelDownloadService.EXTRA_MODEL_ID, modelIdKey)
             putExtra(ModelDownloadService.EXTRA_MODEL_NAME, file.path.substringAfterLast("/"))
             putExtra(ModelDownloadService.EXTRA_FILE_URL, fileUrl)
             putExtra(ModelDownloadService.EXTRA_IS_ZIP, false)

@@ -400,10 +400,13 @@ private fun HFSearchResultCard(
                         )
                     } else {
                         files.forEach { file ->
+                            // DEBUG: Log the key being used for download state lookup
+                            val downloadKey = "${result.id}_${file.path}".replace("/", "_")
+                            android.util.Log.d("HFSearch", "FileDownloadItem: downloadKey='$downloadKey', result.id='${result.id}', file.path='${file.path}'")
                             FileDownloadItem(
                                 file = file,
                                 onDownload = { onDownloadFile(file) },
-                                downloadState = downloadStates["${result.id}_${file.path}".replace("/", "_")]
+                                downloadState = downloadStates[downloadKey]
                             )
                         }
                     }

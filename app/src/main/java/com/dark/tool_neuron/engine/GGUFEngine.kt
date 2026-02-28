@@ -29,6 +29,8 @@ class GGUFEngine {
     private var currentToolCallingConfig: ToolCallingConfig? = null
 
     suspend fun load(model: Model, config: ModelConfig?): Boolean = withContext(Dispatchers.IO) {
+        android.util.Log.d("GGUFEngine", "load: model.id='${model.id}', model.modelPath='${model.modelPath}', isLoaded=$isLoaded")
+
         if (isLoaded) unload()
 
         val schema = GgufEngineSchema.fromJson(
@@ -38,6 +40,8 @@ class GGUFEngine {
 
         val loading = schema.loadingParams
         val inference = schema.inferenceParams
+
+        android.util.Log.d("GGUFEngine", "load: calling nativeLoadModel with path='${model.modelPath}', threads=${loading.threads}, ctxSize=${loading.ctxSize}")
 
         val success = nativeLib.nativeLoadModel(
             path = model.modelPath,

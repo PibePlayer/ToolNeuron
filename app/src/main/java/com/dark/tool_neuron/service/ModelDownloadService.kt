@@ -85,6 +85,7 @@ class ModelDownloadService : Service() {
     }
 
     private fun updateDownloadState(modelId: String, state: DownloadState?) {
+        android.util.Log.d("ModelDownload", "updateDownloadState: modelId='$modelId', state=${state?.let { it::class.simpleName }}")
         _downloadStates.value = if (state == null) {
             _downloadStates.value - modelId
         } else {
@@ -213,6 +214,8 @@ class ModelDownloadService : Service() {
 
                         val targetFile = File(modelsDir, "$modelId.gguf")
 
+                        android.util.Log.d("ModelDownload", "GGUF: modelId='$modelId', targetFile='${targetFile.absolutePath}', tempFile exists=${tempFile?.exists()}")
+
                         if (targetFile.exists()) {
                             targetFile.delete()
                         }
@@ -222,6 +225,7 @@ class ModelDownloadService : Service() {
                         updateDownloadState(modelId, DownloadState.Processing(modelId))
                         updateNotification(modelName, 0f, notificationId, isProcessing = true)
 
+                        android.util.Log.d("ModelDownload", "GGUF: calling insertModelToDatabase for modelId='$modelId'")
                         insertModelToDatabase(
                             modelId = modelId,
                             modelName = modelName,
@@ -230,6 +234,7 @@ class ModelDownloadService : Service() {
                             runOnCpu = false,
                             textEmbeddingSize = 0
                         )
+                        android.util.Log.d("ModelDownload", "GGUF: insertModelToDatabase completed for modelId='$modelId'")
                     }
 
                     "TTS" -> {
@@ -514,10 +519,14 @@ class ModelDownloadService : Service() {
         runOnCpu: Boolean,
         textEmbeddingSize: Int
     ) = withContext(Dispatchers.IO) {
+        android.util.Log.d("ModelDownload", "insertModelToDatabase: modelId='$modelId', modelName='$modelName', modelPath='$modelPath', modelType='$modelType'")
+
         val repository = AppContainer.getModelRepository()
         val parser = ModelDataParser()
 
+        android.util.Log.d("ModelDownload", "insertModelToDatabase: computing checksum for '$modelPath'")
         val checksum = parser.checksumSHA256(modelPath)
+        android.util.Log.d("ModelDownload", "insertModelToDatabase: checksum='$checksum'")
 
         val providerType = when (modelType) {
             "SD" -> ProviderType.DIFFUSION
