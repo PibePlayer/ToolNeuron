@@ -134,6 +134,12 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
     private val _hfSearchState = MutableStateFlow<HFSearchState>(HFSearchState.Idle)
     val hfSearchState: StateFlow<HFSearchState> = _hfSearchState
 
+    private val _hfSearchOffset = MutableStateFlow(0)
+    val hfSearchOffset: StateFlow<Int> = _hfSearchOffset
+
+    private val _hasMoreResults = MutableStateFlow(true)
+    val hasMoreResults: StateFlow<Boolean> = _hasMoreResults
+
     private val _showHFSearch = MutableStateFlow(false)
     val showHFSearch: StateFlow<Boolean> = _showHFSearch
 
@@ -555,13 +561,15 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
         _hfSearchResults.value = emptyList()
         _hfSearchState.value = HFSearchState.Idle
         _expandedRepoFiles.value = emptyMap()
+        _hfSearchOffset.value = 0
+        _hasMoreResults.value = true
     }
 
     fun updateHFSearchQuery(query: String) {
         _hfSearchQuery.value = query
     }
 
-    fun searchHuggingFace(query: String) {
+    fun searchHuggingFace(query: String, loadMore: Boolean = false) {
         if (query.isBlank()) {
             _hfSearchResults.value = emptyList()
             _hfSearchState.value = HFSearchState.Idle
@@ -569,11 +577,23 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
         }
 
         viewModelScope.launch {
-            _hfSearchState.value = HFSearchState.Loading
+            // If not loading more, reset the results
+            if (!loadMore) {
+                _hfSearchState.value = HFSearchState.Loading
+                _hfSearchOffset.value = 0
+                _hasMoreResults.value = true
+            }
+
+            val offset = if (loadMore) _hfSearchOffset.value else 0
+            val currentResults = if (loadMore) _hfSearchResults.value else emptyList()
+
             try {
-                val response = HuggingFaceClient.api.searchModels(query)
+                val response = HuggingFaceClient.api.searchModels(query, offset = offset)
                 if (response.isSuccessful) {
-                    _hfSearchResults.value = response.body() ?: emptyList()
+                    val newResults = response.body() ?: emptyList()
+                    _hfSearchResults.value = if (loadMore) currentResults + newResults else newResults
+                    _hfSearchOffset.value = offset + newResults.size
+                    _hasMoreResults.value = newResults.isNotEmpty()
                     _hfSearchState.value = HFSearchState.Success
                 } else {
                     _hfSearchState.value = HFSearchState.Error("Search failed: ${response.code()}")
@@ -612,10 +632,13 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
 
     fun downloadFromSearchResult(result: HuggingFaceSearchResult, file: com.dark.tool_neuron.network.HuggingFaceFileResponse) {
         val context = getApplication<Application>()
+        // Use the same URL format as downloadModel: https://huggingface.co/{fileUri}
+        // fileUri should be: {repo_id}/resolve/main/{file_path}
         val fileUrl = "https://huggingface.co/${result.id}/resolve/main/${file.path}"
 
-        // DEBUG: Log the key being used for download state lookup
+        // Include file path in model ID to uniquely identify each file download
         val modelIdKey = "${result.id}_${file.path}".replace("/", "_")
+
         android.util.Log.d("HFSearch", "downloadFromSearchResult: modelIdKey='$modelIdKey', result.id='${result.id}', file.path='${file.path}'")
 
         val intent = Intent(context, ModelDownloadService::class.java).apply {
@@ -630,6 +653,12 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
         }
 
         context.startForegroundService(intent)
+    }
+
+    fun loadMoreSearchResults() {
+        if (_hasMoreResults.value && _hfSearchState.value !is HFSearchState.Loading) {
+            searchHuggingFace(_hfSearchQuery.value, loadMore = true)
+        }
     }
 
     fun isRepoInLibrary(repoId: String): Boolean {

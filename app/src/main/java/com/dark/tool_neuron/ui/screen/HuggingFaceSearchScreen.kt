@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -84,9 +85,21 @@ fun HuggingFaceSearchScreen(
     val searchState by viewModel.hfSearchState.collectAsState()
     val expandedRepoFiles by viewModel.expandedRepoFiles.collectAsState()
     val downloadStates by viewModel.downloadStates.collectAsState()
+    val hasMoreResults by viewModel.hasMoreResults.collectAsState()
 
     val focusManager = LocalFocusManager.current
     var localQuery by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+
+    // Load more when reaching near the end of the list
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .collect { lastIndex ->
+                if (lastIndex != null && lastIndex >= searchResults.size - 3) {
+                    viewModel.loadMoreSearchResults()
+                }
+            }
+    }
 
     LaunchedEffect(searchQuery) {
         localQuery = searchQuery
@@ -224,6 +237,7 @@ fun HuggingFaceSearchScreen(
                         }
                     } else {
                         LazyColumn(
+                            state = listState,
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
                                 horizontal = rDp(12.dp),
@@ -241,6 +255,22 @@ fun HuggingFaceSearchScreen(
                                     onDownloadFile = { file -> viewModel.downloadFromSearchResult(result, file) },
                                     downloadStates = downloadStates
                                 )
+                            }
+                            // Show loading indicator at bottom when loading more
+                            if (hasMoreResults && searchState is HFSearchState.Success) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = rDp(16.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(rDp(24.dp)),
+                                            strokeWidth = rDp(2.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -400,9 +430,8 @@ private fun HFSearchResultCard(
                         )
                     } else {
                         files.forEach { file ->
-                            // DEBUG: Log the key being used for download state lookup
+                            // Use same key format as downloadFromSearchResult
                             val downloadKey = "${result.id}_${file.path}".replace("/", "_")
-                            android.util.Log.d("HFSearch", "FileDownloadItem: downloadKey='$downloadKey', result.id='${result.id}', file.path='${file.path}'")
                             FileDownloadItem(
                                 file = file,
                                 onDownload = { onDownloadFile(file) },

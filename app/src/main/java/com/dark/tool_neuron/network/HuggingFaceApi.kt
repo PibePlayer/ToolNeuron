@@ -21,6 +21,7 @@ interface HuggingFaceApi {
         @Query("search") query: String,
         @Query("filter") filter: String = "gguf",
         @Query("limit") limit: Int = 20,
+        @Query("offset") offset: Int = 0,
         @Query("sort") sort: String = "downloads",
         @Query("full") full: Boolean = false
     ): Response<List<HuggingFaceSearchResult>>
