@@ -73,6 +73,7 @@ import com.dark.tool_neuron.ui.theme.rDp
 import com.dark.tool_neuron.viewmodel.HFSearchState
 import com.dark.tool_neuron.viewmodel.ModelStoreViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.snapshotFlow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
