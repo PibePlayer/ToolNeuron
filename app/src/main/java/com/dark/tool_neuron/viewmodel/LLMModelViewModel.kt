@@ -85,7 +85,6 @@ class LLMModelViewModel @Inject constructor(
     }
 
     fun loadModel(model: Model) {
-        android.util.Log.d("LLMModelViewModel", "loadModel: model.id='${model.id}', model.modelName='${model.modelName}', model.providerType=${model.providerType}")
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 // Unload any existing model first
@@ -114,18 +113,6 @@ class LLMModelViewModel @Inject constructor(
     }
 
     private suspend fun loadGgufModel(model: Model, config: ModelConfig) {
-        // Validate the model file exists before attempting to load
-        if (model.pathType != PathType.CONTENT_URI) {
-            val modelFile = java.io.File(model.modelPath)
-            if (!modelFile.exists()) {
-                AppStateManager.setError("Model file not found: ${model.modelPath}")
-                return
-            }
-            if (!modelFile.isFile) {
-                AppStateManager.setError("Model path is not a file: ${model.modelPath}")
-                return
-            }
-        }
         val success = if (model.pathType == PathType.CONTENT_URI) {
             // Use FD-based loading for content:// URIs (SAF)
             val uri = model.modelPath.toUri()
