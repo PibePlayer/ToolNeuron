@@ -435,10 +435,8 @@ private fun HFSearchResultCard(
                         )
                     } else {
                         files.forEach { file ->
-                            // Use same key format as downloadFromSearchResult (without .gguf extension)
-                            val downloadKey = "${result.id}_${file.path}".replace("/", "_").let { key ->
-                                if (key.endsWith(".gguf", ignoreCase = true)) key.dropLast(5) else key
-                            }
+                            // Use same key format as downloadFromSearchResult
+                            val downloadKey = "${result.id}_${file.path}".replace("/", "_")
                             FileDownloadItem(
                                 file = file,
                                 onDownload = { onDownloadFile(file) },

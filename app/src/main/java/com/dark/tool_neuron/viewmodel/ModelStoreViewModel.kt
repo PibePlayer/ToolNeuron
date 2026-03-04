@@ -636,7 +636,7 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
         // fileUri should be: {repo_id}/resolve/main/{file_path}
         val fileUrl = "https://huggingface.co/${result.id}/resolve/main/${file.path}"
         // Strip any existing extension from the modelId so that ModelDownloadService
-        // can append ".gguf" without creating a double-extension filename like "model.gguf.gguf".
+        // can append ".gguf" without creating a double-extension filename.
         val rawId = "${result.id}_${file.path}".replace("/", "_")
         val modelId = if (rawId.endsWith(".gguf", ignoreCase = true)) rawId.dropLast(5) else rawId
         val modelName = file.path.substringAfterLast("/")

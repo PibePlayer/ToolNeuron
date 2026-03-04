@@ -14,6 +14,7 @@ import com.dark.tool_neuron.models.table_schema.Model
 import com.dark.tool_neuron.models.table_schema.ModelConfig
 import com.dark.tool_neuron.worker.DiffusionConfig
 import com.dark.tool_neuron.worker.DiffusionInferenceParams
+import com.dark.tool_neuron.worker.ModelDataParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -84,7 +85,6 @@ class ModelDownloadService : Service() {
     }
 
     private fun updateDownloadState(modelId: String, state: DownloadState?) {
-        android.util.Log.d("ModelDownload", "updateDownloadState: modelId='$modelId', state=${state?.let { it::class.simpleName }}")
         _downloadStates.value = if (state == null) {
             _downloadStates.value - modelId
         } else {
@@ -213,8 +213,6 @@ class ModelDownloadService : Service() {
 
                         val targetFile = File(modelsDir, "$modelId.gguf")
 
-                        android.util.Log.d("ModelDownload", "GGUF: modelId='$modelId', targetFile='${targetFile.absolutePath}', tempFile exists=${tempFile?.exists()}")
-
                         if (targetFile.exists()) {
                             targetFile.delete()
                         }
@@ -224,7 +222,6 @@ class ModelDownloadService : Service() {
                         updateDownloadState(modelId, DownloadState.Processing(modelId))
                         updateNotification(modelName, 0f, notificationId, isProcessing = true)
 
-                        android.util.Log.d("ModelDownload", "GGUF: calling insertModelToDatabase for modelId='$modelId'")
                         insertModelToDatabase(
                             modelId = modelId,
                             modelName = modelName,
@@ -233,7 +230,6 @@ class ModelDownloadService : Service() {
                             runOnCpu = false,
                             textEmbeddingSize = 0
                         )
-                        android.util.Log.d("ModelDownload", "GGUF: insertModelToDatabase completed for modelId='$modelId'")
                     }
 
                     "TTS" -> {
@@ -267,9 +263,11 @@ class ModelDownloadService : Service() {
 
                 updateDownloadState(modelId, DownloadState.Success(modelId))
                 updateNotification(modelName, 100f, notificationId, isSuccess = true)
+                android.util.Log.d("ModelDownloadService", "Download SUCCESS for modelId='$modelId'. State set to Success, will clear in 2s.")
 
                 withContext(Dispatchers.Main) {
                     kotlinx.coroutines.delay(2000)
+                    android.util.Log.d("ModelDownloadService", "Clearing download state for modelId='$modelId' after 2s delay.")
                     updateDownloadState(modelId, null)
                     downloadJobs.remove(modelId)
 
@@ -518,34 +516,14 @@ class ModelDownloadService : Service() {
         runOnCpu: Boolean,
         textEmbeddingSize: Int
     ) = withContext(Dispatchers.IO) {
-        android.util.Log.d("ModelDownload", "insertModelToDatabase: modelId='$modelId', modelName='$modelName', modelPath='$modelPath', modelType='$modelType'")
-
         val repository = AppContainer.getModelRepository()
+        val parser = ModelDataParser()
 
-        // Compute SHA-256 checksum of the model file for identification
-        // This is done after download is complete so it won't cause service timeout
-        val fileSize = File(modelPath).let { f ->
-            if (f.isDirectory) f.walkTopDown().sumOf { it.length() } else f.length()
-        }
-        
-        val checksum = try {
-            val file = File(modelPath)
-            val digest = java.security.MessageDigest.getInstance("SHA-256")
-            if (file.isFile) {
-                file.inputStream().use { input ->
-                    val buffer = ByteArray(8 * 1024)
-                    var bytesRead: Int
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        digest.update(buffer, 0, bytesRead)
-                    }
-                }
-            }
-            digest.digest().joinToString("") { "%02x".format(it) }
-        } catch (e: Exception) {
-            android.util.Log.e("ModelDownload", "Error computing checksum", e)
-            // Fallback to modelId if checksum fails
-            modelId
-        }
+        android.util.Log.d("ModelDownloadService", "insertModelToDatabase: modelId='$modelId' modelName='$modelName' modelPath='$modelPath' modelType='$modelType'")
+        android.util.Log.d("ModelDownloadService", "modelPath length=${modelPath.length}, file exists=${java.io.File(modelPath).exists()}, file size=${java.io.File(modelPath).length()}")
+
+        val checksum = parser.checksumSHA256(modelPath)
+        android.util.Log.d("ModelDownloadService", "checksum='$checksum'")
 
         val providerType = when (modelType) {
             "SD" -> ProviderType.DIFFUSION
@@ -558,6 +536,15 @@ class ModelDownloadService : Service() {
             "SD", "TTS" -> PathType.DIRECTORY
             "GGUF" -> PathType.FILE
             else -> PathType.FILE
+        }
+
+        val fileSize = when (modelType) {
+            "GGUF" -> File(modelPath).length()
+            "TTS" -> {
+                val dir = File(modelPath)
+                if (dir.isDirectory) dir.walkTopDown().sumOf { it.length() } else 0L
+            }
+            else -> 0L
         }
 
         val model = Model(
