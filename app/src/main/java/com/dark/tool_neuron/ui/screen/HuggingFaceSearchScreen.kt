@@ -52,6 +52,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -73,7 +74,6 @@ import com.dark.tool_neuron.ui.theme.rDp
 import com.dark.tool_neuron.viewmodel.HFSearchState
 import com.dark.tool_neuron.viewmodel.ModelStoreViewModel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.snapshotFlow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,13 +93,17 @@ fun HuggingFaceSearchScreen(
     val listState = rememberLazyListState()
 
     // Load more when reaching near the end of the list
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
-            .collect { lastIndex ->
-                if (lastIndex != null && lastIndex >= searchResults.size - 3) {
-                    viewModel.loadMoreSearchResults()
-                }
-            }
+    val shouldLoadMore = remember {
+        derivedStateOf {
+            val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
+            lastVisibleItem != null && lastVisibleItem.index >= searchResults.size - 3
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore.value && hasMoreResults) {
+            viewModel.loadMoreSearchResults()
+        }
     }
 
     LaunchedEffect(searchQuery) {
