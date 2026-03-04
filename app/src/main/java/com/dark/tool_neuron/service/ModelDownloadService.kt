@@ -522,19 +522,30 @@ class ModelDownloadService : Service() {
 
         val repository = AppContainer.getModelRepository()
 
-        // Use a fast deterministic ID based on modelId + file size instead of
-        // computing SHA-256 over the entire file content (which is extremely slow
-        // for large models and can cause the service to be killed by the OS).
+        // Compute SHA-256 checksum of the model file for identification
+        // This is done after download is complete so it won't cause service timeout
         val fileSize = File(modelPath).let { f ->
             if (f.isDirectory) f.walkTopDown().sumOf { it.length() } else f.length()
         }
-        val checksum = java.security.MessageDigest.getInstance("SHA-256")
-            .apply {
-                update(modelId.toByteArray())
-                update(fileSize.toString().toByteArray())
+        
+        val checksum = try {
+            val file = File(modelPath)
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            if (file.isFile) {
+                file.inputStream().use { input ->
+                    val buffer = ByteArray(8 * 1024)
+                    var bytesRead: Int
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        digest.update(buffer, 0, bytesRead)
+                    }
+                }
             }
-            .digest()
-            .joinToString("") { "%02x".format(it) }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            android.util.Log.e("ModelDownload", "Error computing checksum", e)
+            // Fallback to modelId if checksum fails
+            modelId
+        }
 
         val providerType = when (modelType) {
             "SD" -> ProviderType.DIFFUSION
