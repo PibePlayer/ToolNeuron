@@ -641,14 +641,11 @@ class ModelStoreViewModel(application: Application) : AndroidViewModel(applicati
         val modelId = if (rawId.endsWith(".gguf", ignoreCase = true)) rawId.dropLast(5) else rawId
         val modelName = file.path.substringAfterLast("/")
 
-        // Include file path in model ID to uniquely identify each file download
-        val modelIdKey = "${result.id}_${file.path}".replace("/", "_")
-
-        android.util.Log.d("HFSearch", "downloadFromSearchResult: modelIdKey='$modelIdKey', result.id='${result.id}', file.path='${file.path}'")
+        android.util.Log.d("HFSearch", "downloadFromSearchResult: modelId='$modelId', result.id='${result.id}', file.path='${file.path}'")
 
         val intent = Intent(context, ModelDownloadService::class.java).apply {
             action = ModelDownloadService.ACTION_START_DOWNLOAD
-            putExtra(ModelDownloadService.EXTRA_MODEL_ID, modelIdKey)
+            putExtra(ModelDownloadService.EXTRA_MODEL_ID, modelId)
             putExtra(ModelDownloadService.EXTRA_MODEL_NAME, modelName)
             putExtra(ModelDownloadService.EXTRA_FILE_URL, fileUrl)
             putExtra(ModelDownloadService.EXTRA_IS_ZIP, false)
