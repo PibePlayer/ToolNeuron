@@ -11,7 +11,7 @@ object HuggingFaceClient {
     
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(300, TimeUnit.SECONDS)
         .build()
     
     val api: HuggingFaceApi = Retrofit.Builder()

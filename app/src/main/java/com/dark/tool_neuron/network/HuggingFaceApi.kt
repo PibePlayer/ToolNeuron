@@ -39,6 +39,7 @@ data class HuggingFaceFileResponse(
 
 data class HuggingFaceSearchResult(
     val id: String,
+    val modelId: String,
     val author: String?,
     val lastModified: String?,
     val likes: Int?,

@@ -41,7 +41,7 @@ class ModelDownloadService : Service() {
     }
 
     private val client = OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS).build()
+        .readTimeout(300, TimeUnit.SECONDS).build()
 
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "model_download_channel"
